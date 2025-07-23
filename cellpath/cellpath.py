@@ -81,8 +81,7 @@ class CellPath():
 
             else:
                 raise ValueError("`velo_mode` can only be dynamical or stochastic")
-
-    def meta_cell_construction(self, flavor = "k-means", n_clusters = None, resolution = 30, **kwarg):
+    def meta_cell_construction(self, flavor = "k-means", n_clusters = None, resolution = 30, clus_method = 'pca', **kwarg):
         """\
         Description
             Constructing meta cell
@@ -101,10 +100,11 @@ class CellPath():
             "include_unspliced":True,
             # Standardize before pca, boolean
             "standardize": True,
-            "n_comps": 30, 
+            "n_comps": resolution, 
             "kernel": "rbf",
             "alpha": 1,
             "gamma": 0.3,
+            "clus_method": clus_method, 
             "verbose": True,
             "seed": 0
         }
@@ -119,12 +119,12 @@ class CellPath():
 
         # checked
         self.X_clust, self.velo_clust = clust.meta_cells(self.adata, kernel = _kwargs["kernel"], 
-                                                         alpha = _kwargs["alpha"], gamma = _kwargs["gamma"])
+                                                         alpha = _kwargs["alpha"], gamma = _kwargs["gamma"], 
+                                                         clus_method = _kwargs["clus_method"])
 
         if _kwargs["verbose"] == True:
             print("Meta-cell constructed, number of meta-cells: {:d}".format(self.X_clust.shape[0]))
-
-    
+            
     def meta_cell_graph(self, k_neighs = 10, pruning = True, **kwargs):
         """\
         Description
