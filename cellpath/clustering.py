@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import cellpath.leiden as leiden
 
+
 def cluster_cells(
         adata, n_clusters = None, resolution = 30,
         n_comps = 30, include_unspliced = True, 
@@ -105,7 +106,7 @@ def cluster_cells(
 
         return groups.astype('int64')
 
-def meta_cells(adata, kernel = 'rbf', alpha = 1, gamma = 0.3):
+def meta_cells(adata, kernel = 'rbf', alpha = 1, gamma = 0.3, clus_method = 'pca'):
     """\
     estimate the expression and velocity of meta cells, using rbf kernel regression
 
@@ -119,7 +120,8 @@ def meta_cells(adata, kernel = 'rbf', alpha = 1, gamma = 0.3):
         regularization
     gamma 
         para of rbf kernel
-
+    clus_method
+        source of input data (i.e. pca, umap, etc.)
     Returns
     -------
     X_cluster
@@ -128,21 +130,26 @@ def meta_cells(adata, kernel = 'rbf', alpha = 1, gamma = 0.3):
         meta cell velocity data
 
     """
-    
-    if 'groups' not in adata.obs.columns or 'X_pca' not in adata.obsm:
+    #print(adata, 'groups' not in adata.obs.columns, 'X_pca' not in adata.obsm)
+    if f'velocity_{clus_method}' not in adata.obsm:
+        raise ValueError("please perform the needed clustering on the scvelo object first")
+
+    if 'groups' not in adata.obs.columns or f'X_{clus_method}' not in adata.obsm:
         raise ValueError("please cluster cells first") 
 
     from sklearn.kernel_ridge import KernelRidge
     k = KernelRidge(alpha = alpha, kernel = kernel, gamma = gamma)
     groups = adata.obs['groups'].values
     n_clusters = int(np.max(groups) + 1)
-    X_pca = adata.obsm['X_pca']
+    X_pca = adata.obsm[f'X_{clus_method}']
     X_cluster = np.zeros((n_clusters,X_pca.shape[1]))
     velo_cluster = np.zeros(X_cluster.shape)
-    velo_pca = adata.obsm['velocity_pca']
+    velo_pca = adata.obsm[f'velocity_{clus_method}']
 
     for c in range(n_clusters):
         indices = np.where(groups == c)[0]
+        if(indices.shape[0] == 0):
+          continue
         k.fit(X_pca[indices,:],velo_pca[indices,:])
         X_cluster[c,:] = np.mean(X_pca[indices,:],axis=0)
         velo_cluster[c,:] = k.predict(X_cluster[c,:][np.newaxis,:])
