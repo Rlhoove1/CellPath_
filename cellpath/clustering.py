@@ -71,7 +71,7 @@ def cluster_cells(
                 groups = leiden.cluster_cells_leiden(X = X_concat_pca, resolution = resolution, random_state = seed)
             elif flavor == "hier":
                 print("using hier")
-                groups = AgglomerativeClustering(n_clusters = n_clusters, affinity = "euclidean").fit(X_concat_pca).labels_            
+                groups = AgglomerativeClustering(n_clusters = n_clusters, metric = "euclidean").fit(X_concat_pca).labels_            
             else:
                 raise ValueError("flavor can only be `k-means', `leiden' or `hier'")
             
