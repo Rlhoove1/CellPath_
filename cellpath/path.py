@@ -1,6 +1,7 @@
 import numpy as np
 
 
+
 def dijkstra_paths(adj, indeg = [0]):
     try:
         import networkx as nx
