@@ -82,48 +82,74 @@ class CellPath():
             else:
                 raise ValueError("`velo_mode` can only be dynamical or stochastic")
 
-    def meta_cell_construction(self, flavor = "k-means", n_clusters = None, resolution = 30, **kwarg):
-        """\
-        Description
-            Constructing meta cell
+    def meta_cell_construction(self, flavor="k-means", n_clusters=None, resolution=30, **kwarg):
+    """\
+    Construct meta-cells within predefined clusters.
 
-        Parameters
-        ----------
-        flavor
-            The clustering algorithm for meta-cell: including k-means and leiden algorithm
-        n_clusters
-            The number of meta cells (if use k-means), default cell number/10
-        resolution
-            The resolution parameter(if use leiden), default 30
-        """
-        _kwargs = {
-            # Boolean, whether include unspliced count or not
-            "include_unspliced":True,
-            # Standardize before pca, boolean
-            "standardize": True,
-            "n_comps": 30, 
-            "kernel": "rbf",
-            "alpha": 1,
-            "gamma": 0.3,
-            "verbose": True,
-            "seed": 0
-        }
-        _kwargs.update(kwarg)
+    Parameters
+    ----------
+    flavor : str
+        Clustering algorithm for meta-cell construction ("k-means" or "leiden").
+    n_clusters : int or None
+        Number of meta-cells per cluster (for k-means). If None, defaults to len(cluster) // 10.
+    resolution : float
+        Resolution parameter (for leiden clustering).
+    """
 
-        # skip if already clustered
-        self.groups = clust.cluster_cells(self.adata, n_clusters = n_clusters,
-                                          n_comps = _kwargs["n_comps"], resolution = resolution,
-                                          include_unspliced = _kwargs["include_unspliced"],
-                                          standardize = _kwargs["standardize"], seed = _kwargs["seed"], 
-                                          flavor = flavor)
+    _kwargs = {
+        "include_unspliced": True,
+        "standardize": True,
+        "n_comps": 30, 
+        "kernel": "rbf",
+        "alpha": 1,
+        "gamma": 0.3,
+        "verbose": True,
+        "seed": 0
+    }
+    _kwargs.update(kwarg)
 
-        # checked
-        self.X_clust, self.velo_clust = clust.meta_cells(self.adata, kernel = _kwargs["kernel"], 
-                                                         alpha = _kwargs["alpha"], gamma = _kwargs["gamma"])
+    if "clusters" not in self.adata.obs:
+        raise ValueError("Predefined clusters not found in `adata.obs['clusters']`")
 
-        if _kwargs["verbose"] == True:
-            print("Meta-cell constructed, number of meta-cells: {:d}".format(self.X_clust.shape[0]))
+    meta_cell_labels = []
 
+    for cluster in self.adata.obs["clusters"].unique():
+        idx = self.adata.obs["clusters"] == cluster
+        adata_sub = self.adata[idx].copy()
+
+        if flavor == "k-means":
+            n_sub = n_clusters or max(2, len(adata_sub) // 10)
+            X = adata_sub.obsm["X_pca"] if "X_pca" in adata_sub.obsm else adata_sub.X.toarray()
+            kmeans = KMeans(n_clusters=n_sub, random_state=_kwargs["seed"], n_init="auto").fit(X)
+            sub_labels = [f"{cluster}_{i}" for i in kmeans.labels_]
+
+        elif flavor == "leiden":
+            import scanpy as sc
+            sc.pp.neighbors(adata_sub, n_pcs=_kwargs["n_comps"])
+            sc.tl.leiden(adata_sub, resolution=resolution, key_added="meta_cell_tmp")
+            sub_labels = [f"{cluster}_{lab}" for lab in adata_sub.obs["meta_cell_tmp"]]
+
+        else:
+            raise ValueError(f"Unsupported clustering flavor: {flavor}")
+
+        meta_cell_labels.extend(pd.Series(sub_labels, index=adata_sub.obs_names))
+
+    # Assign meta-cell labels to adata
+    self.adata.obs["meta_cell"] = pd.Series(meta_cell_labels)
+
+    # Create meta-cell expression/velocity representation
+    self.groups = self.adata.obs["meta_cell"]
+    self.X_clust, self.velo_clust = clust.meta_cells(
+        self.adata,
+        kernel=_kwargs["kernel"],
+        alpha=_kwargs["alpha"],
+        gamma=_kwargs["gamma"]
+    )
+
+    if _kwargs["verbose"]:
+        print(f"Meta-cell construction complete. Number of meta-cells: {self.X_clust.shape[0]}")
+
+    
     def meta_cell_graph(self, k_neighs = 10, pruning = True, **kwargs):
         """\
         Description
