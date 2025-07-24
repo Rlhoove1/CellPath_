@@ -38,7 +38,7 @@ def floyd_warshall(adj):
         print("please install networkx first")
     else:
         # consider disconnected nodes as connected with np.inf weight, or disconnected graph causing error
-        G = nx.convert_matrix.from_numpy_matrix(A = adj, create_using = nx.DiGraph)
+        G = nx.from_numpy_array(adj, create_using=nx.DiGraph)
         predecessors, distance = nx.floyd_warshall_predecessor_and_distance(G)
         N = adj.shape[0]
         paths = {}
