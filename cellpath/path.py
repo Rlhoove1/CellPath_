@@ -7,7 +7,8 @@ def dijkstra_paths(adj, indeg = [0]):
         import networkx as nx
     except ImportError:
         print("please install networkx first")
-    G = nx.convert_matrix.from_numpy_matrix(A = np.where(adj == np.inf, 0, adj), create_using=nx.DiGraph)
+    adj_clean = np.where(adj == np.inf, 0, adj)
+    G = nx.from_numpy_array(adj_clean, create_using=nx.DiGraph)
     starts = [x for x,d in G.in_degree() if d in indeg]
     # # also can use
     # dist, paths = nx.multi_source_dijkstra(G, starts, weight = 'weight')
